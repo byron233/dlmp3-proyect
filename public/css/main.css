@@ -40,7 +40,7 @@ footer{
     display: grid;
     grid-template-columns: repeat(3, auto);
     grid-gap: 20px;
-    width: 90%;
+    width: 80%;
     padding: 0 1rem 1rem 2rem;
     justify-content: center;
     align-content: center;
@@ -57,6 +57,8 @@ footer{
 .toolsCnt a img {
     width: 45%;
     margin: 5% auto;
+    max-width: 150px;
+
 }
 .TitleCnt{
     text-align: start;
@@ -159,6 +161,13 @@ footer{
 .convertToolsCnt form div label:hover{
     cursor: pointer;
 }
+#reqButton:disabled{
+    background-color: #ff4d4d;
+    border-color: #ff4d4d;
+}
+#reqButton{
+    transition: all .5s;
+}
 /*********************Estilos reddefinos de bootstrap*****************************/
 nav{
     background-color: #c56cf0 !important;
@@ -190,15 +199,21 @@ nav{
     justify-self: center;
 }
 .infoVideoReq{
-    text-align: none;
+    text-align: left;
 }
-
+.thumbnail{
+    display: grid;
+    justify-content: center;
+}
 
 
 /*******************************Estilos responsive************************************/
 @media screen and (max-width: 800px)  {
     .reqNresCnt{
         height: 80vh;
+    }
+    .toolsCnt{
+        width: 90%;
     }
 }
 @media (max-width: 800px) and (orientation: landscape) {
@@ -207,9 +222,10 @@ nav{
        overflow: auto;
     }
 }
-@media screen and (max-width:560px){
+@media screen and (max-width:600px){
     .toolsCnt{
         grid-template-columns: repeat(2, auto);
+        width: 100%;
     }
     .btnCnt{
         display: grid;

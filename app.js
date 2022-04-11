@@ -41,5 +41,4 @@ app.get('*', (req,res)=>{
 })
 
 //Iniciando servidor
-//app.listen(port, '192.168.100.19', ()=>console.log(`Servidor en el puerto ${port}`))
 app.listen(port, ()=>console.log(`Servidor en el puerto ${port}`))

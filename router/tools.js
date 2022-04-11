@@ -4,7 +4,7 @@ const router = express.Router();
 const dlFunctions = require('../Methods/dlFunctions');
 const fs = require('fs-extra');
 const multer = require('multer');
-
+const cleanUp = require('../Methods/CleanUp');
 // SET STORAGE
 var storage = multer.diskStorage({
     destination: function (req, file, cb) {
@@ -110,32 +110,42 @@ router.post('/dlAudio', async (req, res) =>{
         fs.mkdirSync(dir);
     }
     var y;
-    if(isLiveContent){
-        errors.push({error: 'Is a Live \nWhen the live ends, you can download it <a href="/tools/yttoaudio">Try other</a>'})
-    }else{
-        //Estado de la descarga
-        y = setInterval(()=>{
-            if(!dlFunctions.AdlStatus.AudioDl.isComplete){
-                console.log(dlFunctions.AdlStatus.AudioDl.percentComplete + "% descargado");
+    
+    //Comprobando si el achivo existe
+    await dlFunctions.GetInfo(url).then(async info =>{
+        
+        if(!fs.existsSync(`${dir}/${info.videoDetails.title.replaceAll('/', '')}.${format}`)){
+            if(isLiveContent){
+                errors.push({error: 'Is a Live \nWhen the live ends, you can download it <a href="/tools/yttoaudio">Try other</a>'})
             }else{
-                console.log('Se completo la descarga del audio');
-                if(!dlFunctions.AdlStatus.fileConvert.isComplete){
-                    console.log(dlFunctions.AdlStatus.fileConvert.percentComplete + "% convertido");
-                }else{
-                    console.log('Se completo la conversion del audio');
-                }
+                //Estado de la descarga
+                y = setInterval(()=>{
+                    if(!dlFunctions.AdlStatus.AudioDl.isComplete){
+                        console.log(dlFunctions.AdlStatus.AudioDl.percentComplete + "% descargado");
+                    }else{
+                        console.log('Se completo la descarga del audio');
+                        if(!dlFunctions.AdlStatus.fileConvert.isComplete){
+                            console.log(dlFunctions.AdlStatus.fileConvert.percentComplete + "% convertido");
+                        }else{
+                            console.log('Se completo la conversion del audio');
+                        }
+                    }
+        
+                    if(dlFunctions.AdlStatus.AudioDl.isComplete == true && dlFunctions.AdlStatus.fileConvert.isComplete == true){
+                        clearInterval(y);
+                    }
+                },200)
+                await dlFunctions.DlVideoNAudio(url, dir, format, '')
+                .then(v =>{
+                    console.log(v.msg)
+                    data.name = v.fileName.replaceAll('/', '');
+                }).catch(e => errors.push({error:e}));
             }
-
-            if(dlFunctions.AdlStatus.AudioDl.isComplete == true && dlFunctions.AdlStatus.fileConvert.isComplete == true){
-                clearInterval(y);
-            }
-        },200)
-        await dlFunctions.DlVideoNAudio(url, dir, format, '')
-        .then(v =>{
-            console.log(v.msg)
-            data.name = v.fileName.replaceAll('/', '');
-        }).catch(e => errors.push({error:e}));
-    }
+        }else{
+            console.log('Archivo existente');
+            data.name = info.videoDetails.title.replaceAll('/', '');
+        }
+    })
 
     //Enviando informacion o errores
     if(errors.length == 0){
@@ -156,61 +166,72 @@ router.post('/dlVideo', async (req, res) =>{
     let {url, format, isLiveContent, calidad} = req.body;
     data.url = url;
     data.format = format;
-
-    //Descargando video
-    if(isLiveContent){
-        errors.push({error: 'Is a Live \nWhen the live ends, you can download it <a href="/tools/yttovideo">Try other</a>'})
-    }else{
-         //Estado de la descarga
-         y = setInterval(()=>{
-            if(!dlFunctions.VdlStatus.VideoDl.isComplete){
-                console.log(dlFunctions.VdlStatus.VideoDl.percentComplete + "% descargado");
-            }else{
-                console.log('Se completo la descarga del audio');
-                if(!dlFunctions.VdlStatus.fileConvert.isComplete){
-                    console.log(dlFunctions.VdlStatus.fileConvert.percentComplete + "% convertido");
-                }else{
-                    console.log('Se completo la conversion del audio');
-                }
-            }
-
-            if(dlFunctions.VdlStatus.VideoDl.isComplete == true && dlFunctions.AdlStatus.fileConvert.isComplete == true){
-                clearInterval(y);
-            }
-        },200)
-
-        let destino = path.join(__dirname, '../dlVideos/');
-        if(!fs.existsSync(destino)){
-            fs.mkdirSync(destino);
-        }
-        await dlFunctions.DlVideoNAudio(url, destino, format, calidad)
-        .then(async v => {
-            console.log(v.msg);
-            data.name = v.fileName.replaceAll('/', '');
-            let input = `${destino}Audio${v.fileName}.mp4`;
-            let output = `${destino}Audio${v.fileName}.mp3`;
-
-            //Convirtiendo audio y uniendo en caso de que esten separados
-            await dlFunctions.ConvertMedia(input, output, dlFunctions.VdlStatus).then(async c => {
-                console.log(c); //Se convirtieron los archivos
-                if(fs.existsSync(`${destino}${v.fileName}.${format}`)){
-                    fs.rename(`${destino}${v.fileName}.${format}`,`${destino}Video${v.fileName}.${format}`)
-                }
-                let videoInput = `${destino}Video${v.fileName}.${format}`;
-                let audioInput = `${destino}Audio${v.fileName}.mp3`;
-                let videoOutput = `${destino}${v.fileName}.${format}`;
-
-                await  dlFunctions.MargeMedia(videoInput, audioInput, videoOutput)
-                .then(async m => {
-                    console.log(m);
-                })
-                .catch(e => errors.push({error:'Ocurrio un error al descargar el video'}));
-            })
-            .catch(e => errors.push({error:'Ocurrio un error al descargar el video'}));
-            
-        })
-        .catch(e => console.log(e));
+    let destino = path.join(__dirname, '../dlVideos/');
+    if(!fs.existsSync(destino)){
+        fs.mkdirSync(destino);
     }
+
+    //Comprobando si el achivo existe
+    await dlFunctions.GetInfo(url).then(async info =>{
+        
+        if(!fs.existsSync(`${destino}/${info.videoDetails.title.replaceAll('/', '')}.${format}`)){
+            //Descargando video
+            if(isLiveContent){
+                errors.push({error: 'Is a Live \nWhen the live ends, you can download it <a href="/tools/yttovideo">Try other</a>'})
+            }else{
+                //Estado de la descarga
+                y = setInterval(()=>{
+                    if(!dlFunctions.VdlStatus.VideoDl.isComplete){
+                        console.log(dlFunctions.VdlStatus.VideoDl.percentComplete + "% descargado");
+                    }else{
+                        console.log('Se completo la descarga del audio');
+                        if(!dlFunctions.VdlStatus.fileConvert.isComplete){
+                            console.log(dlFunctions.VdlStatus.fileConvert.percentComplete + "% convertido");
+                        }else{
+                            console.log('Se completo la conversion del audio');
+                        }
+                    }
+
+                    if(dlFunctions.VdlStatus.VideoDl.isComplete == true && dlFunctions.AdlStatus.fileConvert.isComplete == true){
+                        clearInterval(y);
+                    }
+                },200)
+
+                await dlFunctions.DlVideoNAudio(url, destino, format, calidad)
+                .then(async v => {
+                    console.log(v.msg);
+                    data.name = v.fileName.replaceAll('/', '');
+                    let input = `${destino}Audio${v.fileName}.mp4`;
+                    let output = `${destino}Audio${v.fileName}.mp3`;
+
+                    //Convirtiendo audio y uniendo en caso de que esten separados
+                    await dlFunctions.ConvertMedia(input, output, dlFunctions.VdlStatus).then(async c => {
+                        console.log(c); //Se convirtieron los archivos
+                        if(fs.existsSync(`${destino}${v.fileName}.${format}`)){
+                            fs.rename(`${destino}${v.fileName}.${format}`,`${destino}Video${v.fileName}.${format}`)
+                        }
+                        let videoInput = `${destino}Video${v.fileName}.${format}`;
+                        let audioInput = `${destino}Audio${v.fileName}.mp3`;
+                        let videoOutput = `${destino}${v.fileName}.${format}`;
+
+                        await  dlFunctions.MargeMedia(videoInput, audioInput, videoOutput)
+                        .then(async m => {
+                            console.log(m);
+                        })
+                        .catch(e => errors.push({error:'Ocurrio un error al descargar el video'}));
+                    })
+                    .catch(e => errors.push({error:'Ocurrio un error al descargar el video'}));
+                    
+                })
+                .catch(e => console.log(e));
+            }
+            
+        }else{
+            console.log('Archivo existente');
+            data.name = info.videoDetails.title.replaceAll('/', '');
+        }
+    })
+    
     //Enviando informacion o errores
     if(errors.length == 0){
         clearInterval(y);
@@ -329,6 +350,7 @@ router.post('/convertfile', async (req, res)=>{
 router.get('/downloadFile/:name/:format/:isVideo/:isConvertFile', (req,res)=>{
     let {format, name, isVideo,isConvertFile} = req.params;
     let dir;
+    let errors = [];
     /*if(!isConvertFile == 'true'){
         //Descargar videos y audios descargados
         if(isVideo == 'true'){
@@ -351,9 +373,16 @@ router.get('/downloadFile/:name/:format/:isVideo/:isConvertFile', (req,res)=>{
     }else if(fs.existsSync(path.join(__dirname, `../convertFiles/${name}.${format}`))){
         //Carpeta de convertidos
         dir = path.join(__dirname, `../convertFiles/${name}.${format}`)
+    }else{
+        //Si el archivo no existe
+        errors.push('Oppps!, the file was deleted please <a href="/">Try again</a>')
     }
 
-    res.download(dir);
+    if(errors.length > 0){
+        res.send(errors[0])
+    }else{
+        res.download(dir);
+    }
 })
 
 //Ruta para eliminar el archivo
@@ -386,5 +415,10 @@ router.delete('/deleteFile/:name/:format/:isVideo', async (req, res)=>{
     }
     
 })
+
+//Limpiando
+//Cada hora eliminara los archivos que tengan mas de media hora
+cleanUp.CleanUpStart([path.join(__dirname, '../dlAudios/'),path.join(__dirname, '../dlVideos/')], 3.6e6, 1.8e6);
+
 
 module.exports = router;
